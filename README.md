@@ -1,4 +1,4 @@
-# 大肥鱼少吃点我的token……节省一下！（dsh-token-saver）
+# 大肥鱼少吃点我的token……节省一下！（DeepSeek-Harness-Token-Saver）
 
 > ⚠️ 维护状态 / Maintenance Status
 > 这是一个个人实验项目，由 AI 协助整理发布。作者是编程新手，没有时间或能力持续维护。
