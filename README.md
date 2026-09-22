@@ -1,4 +1,10 @@
-# dsh-token-saver
+# 大肥鱼少吃点我的token……节省一下！（dsh-token-saver）
+
+> ⚠️ 维护状态 / Maintenance Status
+> 这是一个个人实验项目，由 AI 协助整理发布。作者是编程新手，没有时间或能力持续维护。
+> 代码按“原样”提供，不保证兼容未来版本，不提供技术支持。请自行阅读代码、评估风险后使用。
+>
+> This is a personal experimental project, published with AI assistance. The author is a beginner and cannot provide ongoing maintenance or support. The code is provided "as is", without warranty of any kind. Use at your own risk.
 
 > ### 🇨🇳 中文说明在这里 → **[README.zh.md](README.zh.md)**
 >
