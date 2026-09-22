@@ -1,0 +1,12 @@
+# Bundle patch for local-offload: the row this bundle inserts into the DSH profile.
+- insert:
+    - id: local-offload
+      # Must be the package.json "name" so Node resolution finds the installed code.
+      name: dsh-plugin-local-offload
+      config:
+        baseUrl: http://127.0.0.1:18080
+        model: local-qwen3-8b
+        timeoutMs: 300000
+        maxInputChars: 400000
+        maxOutputTokens: 1024
+        temperature: 0.2

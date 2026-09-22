@@ -1,0 +1,87 @@
+# Profile patch template: local llama.cpp only. No API key, no external service,
+# no quota.
+#
+# Copy this over `$DSH_HOME/profiles/<name>/cordis.patch.yml`, keep your own
+# values for anything you had already changed, then run
+#   dsh --profile <name> --dump-config
+# to confirm the composition before restarting DSH.
+#
+# READ templates/README.md FIRST. A patch replaces the targeted row's entire
+# `config` rather than merging into it, so every entry below restates the full
+# configuration for its row, including keys it is not changing.
+#
+# What this template can and cannot do:
+#   - it can keep bulky text out of the paid context, which is the whole point
+#   - it CANNOT route the session-title call off the paid API, because that call
+#     needs a provider DSH's `llm-pi-ai` adapter knows about, and a bare
+#     llama.cpp server is not one. That item is only in the hosted template.
+#
+# Expect it to be slow. On an RX 5700 (8 GB), prefill runs about one second per
+# 1,000 characters: ~33 s for a 4 K-token payload, ~113 s for 8 K, ~300 s for
+# 14 K. Keep delegations at or under ~6,000 characters.
+
+# --- Keep oversized tool output out of context -------------------------------
+# The single largest measured saving in this setup, and it needs no model at all.
+#
+# Measured over 1,918 tool results totalling 2.68 M characters:
+#   above 50,000 chars (the shipped default):   1 result,  2.0% of tool text
+#   above 12,000 chars (this value):           39 results, 33.0% of tool text
+#
+# A plain-text result above the cap is replaced BEFORE it enters history by a
+# bounded head/tail preview plus a locator naming a spill file. The full text
+# stays reachable with `read offset/limit` or `grep`.
+#
+# `dsh-compaction-tool-result-pruner` already fires at 8,192 chars, and the
+# preview is the model's only immediate view of the output, so do not set this
+# much lower. `read` results are exempt by design.
+- id: spill-policy
+  config:
+    maxInlineBytes: 12000
+
+# --- Make the session search index durable -----------------------------------
+# Shipped, this row keeps its index in `:memory:` with `openAt: never`, so the
+# index is rebuilt from nothing on every start and search never runs.
+#
+# `openAt: first-search` defers importing `node:sqlite` until a search actually
+# happens, so DSH's boot path gains no failure surface. The path MUST stay
+# separate from the session-persistence store (`sessions/`): the package owns a
+# derived index and refuses to open a database belonging to the canonical store.
+- id: session-query-sqlite
+  config:
+    path: !!js dshHomePath('storages/session-search.db')
+    openAt: first-search
+
+# --- Local delegation --------------------------------------------------------
+# Points the plugin at this machine's own llama.cpp server. There is no chain
+# here on purpose: with only one endpoint and no quota, rotation has nothing to
+# rotate to, and a failed call should report the real problem (usually "the
+# server is not running") rather than rotate into the same failure.
+#
+# The plugin probes llama.cpp's /health before each delegation and starts the
+# server itself when it is down, so a stopped server costs one slow call rather
+# than an error. It spawns `llama-server` directly rather than through a
+# launcher script: Node's `detached` only puts the immediate child in a new
+# process group, so a launcher's grandchild was reaped the moment the launcher
+# exited.
+- id: local-offload
+  config:
+    baseUrl: http://127.0.0.1:18080
+    model: local-qwen3-8b
+    # A local server ignores the bearer value; it is sent only because the
+    # OpenAI-compatible surface expects the header.
+    apiKey: local-no-key
+    # No apiKeyEnv here, so there is no credential to look up. If you later add a
+    # hosted endpoint to a chain, set `apiKeyEnv` AND `credentialsFile`: the
+    # harness keeps saved keys in <DSH_HOME>/.credentials.yaml and never exports
+    # them, so a plugin that reads only the environment gets a placeholder and a
+    # 401 on every call. See templates/README.md.
+    # llama.cpp answers /props, so the real window is probed and this is only a
+    # fallback. 32768 matches the server's own -c setting.
+    maxContextTokens: 32768
+    timeoutMs: 300000
+    maxInputChars: 400000
+    maxOutputTokens: 1024
+    temperature: 0.2
+    # No chain: this is the only endpoint.
+    chain: ''
+    cooldownSeconds: 65

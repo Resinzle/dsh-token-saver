@@ -1,0 +1,23 @@
+# Normalize line endings.
+#
+# Without this, Git on Windows converts LF to CRLF in the working copy, which
+# makes a fresh clone differ byte-for-byte from the checkout it was cloned from.
+# `tools/doctor.mjs` compares the installed plugin copy against the source
+# checkout and would then report a spurious difference, and `npm pack` would ship
+# CRLF into `.mjs` files. Both are avoidable.
+#
+# `.ps1` files are also forced to LF: PowerShell reads either ending, and a
+# consistent ending keeps the byte comparison meaningful.
+* text=auto eol=lf
+
+# Binary assets keep their bytes untouched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.gguf binary
+
+# Git manages these itself.
+*.zstd binary

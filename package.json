@@ -1,0 +1,43 @@
+{
+  "name": "dsh-plugin-local-offload",
+  "version": "1.0.0",
+  "description": "DeepSeek Harness plugin: hand bulky text to a free or local model so the paid agent loop never re-reads it. Ships the local_delegate tool plus a measured, documented token-reduction setup.",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "tokens",
+    "context",
+    "llama.cpp",
+    "siliconflow"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./lib/*": "./lib/*",
+    "./cordis.yml": "./cordis.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.yml"
+    }
+  }
+}

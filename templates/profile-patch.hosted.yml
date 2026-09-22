@@ -1,0 +1,124 @@
+# Profile patch template: hosted free tier, local server as the floor.
+#
+# Copy this over `$DSH_HOME/profiles/<name>/cordis.patch.yml`, keep your own
+# values for anything you had already changed, then run
+#   dsh --profile <name> --dump-config
+# to confirm the composition before restarting DSH.
+#
+# READ templates/README.md FIRST. A patch replaces the targeted row's entire
+# `config` rather than merging into it, so every entry below restates the full
+# configuration for its row, including keys it is not changing. Trimming a key
+# deletes it.
+#
+# Why a hosted free tier rather than only the local server:
+#   - the hosted model is faster and stronger, and prefill is not bounded by
+#     your GPU
+#   - it costs nothing on a free tier
+# The local server stays last in the chain because it has NO quota, which makes
+# it the right floor rather than the first choice.
+
+# --- Keep oversized tool output out of context -------------------------------
+# The single largest measured saving in this setup.
+#
+# Measured over 1,918 tool results totalling 2.68 M characters:
+#   above 50,000 chars (the shipped default):   1 result,  2.0% of tool text
+#   above 12,000 chars (this value):           39 results, 33.0% of tool text
+#
+# So the shipped cap is effectively off. A plain-text result above the cap is
+# replaced BEFORE it enters history by a bounded head/tail preview plus a locator
+# naming a spill file. The full text stays on disk, reachable with
+# `read offset/limit` or `grep`, and the replacement is append-only with respect
+# to the cached prefix, unlike rewriting history after the fact.
+#
+# Deliberately not lower than ~12 KB: the preview is the model's only immediate
+# view of that output, and `dsh-compaction-tool-result-pruner` already fires at
+# 8,192 chars. `read` results are exempt by design, so reading source files is
+# unaffected at any value.
+- id: spill-policy
+  config:
+    maxInlineBytes: 12000
+
+# --- Route the session-title call off the paid API ---------------------------
+# A title is a mechanical 5-word summary, which is exactly the kind of work a
+# free route should absorb. Verified against the shipped row's own config keys
+# (`@deepseek-ai/dsh-session-title-llm` requires `provider` and `model` together,
+# and rejects any unknown key), so all of them are restated here.
+#
+# This removes one paid request per session. It is a small win, configured and
+# not oversold: the bill is dominated by main-loop replay, not by titles.
+- id: session-title-llm
+  config:
+    targetWords: 5
+    targetCjkCharacters: 10
+    maxInputBytes: 4096
+    maxOutputTokens: 64
+    timeoutMs: 60000
+    provider: siliconflow
+    model: Qwen/Qwen3-8B
+
+# --- Make the session search index durable -----------------------------------
+# Shipped, this row keeps its index in `:memory:` with `openAt: never`, so the
+# index is rebuilt from nothing on every start and search never runs.
+#
+# `openAt: first-search` rather than `startup`: it defers importing `node:sqlite`
+# until a search actually happens, so DSH's boot path gains no failure surface,
+# and the first search performs the full incremental reconcile.
+#
+# The path MUST stay separate from the session-persistence store (`sessions/`);
+# the package owns a derived index and refuses to open a database belonging to
+# the canonical store. `storages/` is where the other derived state already
+# lives.
+- id: session-query-sqlite
+  config:
+    path: !!js dshHomePath('storages/session-search.db')
+    openAt: first-search
+
+# --- Free-model delegation tool ----------------------------------------------
+# Inserted by the plugin `dsh-plugin-local-offload` (see cordis.yml). This entry
+# retunes it; the plugin's own row supplies the defaults.
+#
+# MEASURED BASIS for the chain: the free tier's per-minute token allowance is
+# per MODEL, not per account. Burning one model to its ceiling (HTTP 429 after
+# 224,713 tokens) and then immediately calling three other free models returned
+# 200 from all three. So a throttled model can be side-stepped in about a second
+# instead of waited out for a minute.
+#
+# Order matters. Deliberately EXCLUDED, both ignore `enable_thinking: false` and
+# spend 68-143 output tokens saying one word:
+#   THUDM/GLM-Z1-9B-0414
+#   deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+- id: local-offload
+  config:
+    baseUrl: https://api.siliconflow.cn/v1
+    model: Qwen/Qwen3-8B
+    # The name of the saved credential. Save it in the DSH Models page, or add
+    # `SILICONFLOW_API_KEY: sk-...` under `refs:` in $DSH_HOME/.credentials.yaml.
+    apiKeyEnv: SILICONFLOW_API_KEY
+    # The plugin is not the harness, so it cannot use the harness's credential
+    # API and must read that file itself. Setting this explicitly is the whole
+    # difference between working and a 401 on the first call: the harness
+    # resolves `apiKeyEnv` references for its OWN routes but never exports them
+    # into the environment, so `process.env.SILICONFLOW_API_KEY` is undefined
+    # inside a plugin even when the key is saved correctly.
+    #
+    # `!!js` is supported under a plugin's `config` in cordis.yml, and
+    # `dshHomePath` resolves against $DSH_HOME at composition time.
+    credentialsFile: !!js dshHomePath('.credentials.yaml')
+    # A hosted endpoint does not answer llama.cpp's /props, so this is the
+    # authority for payload sizing. 131072 = the model's real 128K window.
+    maxContextTokens: 131072
+    timeoutMs: 120000
+    # Character ceiling on one payload before it is truncated with a warning.
+    maxInputChars: 400000
+    maxOutputTokens: 1024
+    temperature: 0.2
+    # Entries are tried in order when an endpoint returns 429 or is unreachable.
+    # The local server is LAST on purpose: it has no quota at all.
+    chain: >-
+      ["https://api.siliconflow.cn/v1|THUDM/GLM-4-9B-0414",
+       "https://api.siliconflow.cn/v1|Qwen/Qwen3-8B",
+       "https://api.siliconflow.cn/v1|Qwen/Qwen3.5-4B",
+       "http://127.0.0.1:18080|local-qwen3-8b"]
+    # One minute, because the allowance is per minute. A parked endpoint becomes
+    # eligible again automatically; there is no manual reset to forget.
+    cooldownSeconds: 65

@@ -1,0 +1,23 @@
+# Dependencies are installed by the host profile, never committed here.
+node_modules/
+.pnpm-store/
+
+# Editors and OS cruft.
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.swp
+
+# Operational residue from running the measurement and verification scripts.
+# The scripts write JSON/CSV reports next to themselves when asked to; none of
+# it belongs in version control.
+*.report.json
+*.report.csv
+reports/
+
+# A sponsor QR image is a personal payment credential. If you fork this repo,
+# do not commit your own here and do not commit a copy of someone else's; see
+# docs/sponsor.md.
+# assets/sponsor-qr.png is intentionally NOT ignored -- the project author adds
+# it deliberately. Keep this comment as a reminder, not as a rule.
